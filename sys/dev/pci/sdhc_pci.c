@@ -216,8 +216,7 @@ static const struct sdhc_pci_quirk {
 		0xffff,
 		0xffff,
 		~0,
-		SDHC_PCI_QUIRK_INTEL_EMMC_HW_RESET |
-		SDHC_PCI_QUIRK_NO_PWR0
+		SDHC_PCI_QUIRK_INTEL_EMMC_HW_RESET
 	},
 	{
 		PCI_VENDOR_INTEL,
