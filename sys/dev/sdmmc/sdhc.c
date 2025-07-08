@@ -44,6 +44,7 @@ __KERNEL_RCSID(0, "$NetBSD: sdhc.c,v 1.121 2025/02/16 11:15:18 jmcneill Exp $");
 #include <dev/sdmmc/sdmmcreg.h>
 #include <dev/sdmmc/sdmmcvar.h>
 
+#define SDHC_DEBUG
 #ifdef SDHC_DEBUG
 int sdhcdebug = 1;
 #define DPRINTF(n,s)	do { if ((n) <= sdhcdebug) printf s; } while (0)
@@ -932,17 +933,9 @@ sdhc_bus_power(sdmmc_chipset_handle_t sch, uint32_t ocr)
 
 	mutex_enter(&hp->intr_lock);
 
-	/*
-	 * Disable bus power before voltage change.
-	 */
-	if (!ISSET(hp->sc->sc_flags, SDHC_FLAG_32BIT_ACCESS)
-	    && !ISSET(hp->sc->sc_flags, SDHC_FLAG_NO_PWR0)) {
-		hp->vdd = 0;
-		HWRITE1(hp, SDHC_POWER_CTL, 0);
-	}
-
 	/* If power is disabled, reset the host and return now. */
 	if (ocr == 0) {
+		HWRITE1(hp, SDHC_POWER_CTL, 0);
 		(void)sdhc_host_reset1(hp);
 		callout_halt(&hp->tuning_timer, &hp->intr_lock);
 		goto out;
@@ -965,10 +958,21 @@ sdhc_bus_power(sdmmc_chipset_handle_t sch, uint32_t ocr)
 	}
 
 	/*
-	 * Did voltage change ?
+	 * Return if no change to powered bus voltage.
 	 */
-	if (vdd == hp->vdd)
+	if (HREAD1(hp, SDHC_POWER_CTL) ==
+		((vdd << SDHC_VOLTAGE_SHIFT) | SDHC_BUS_POWER)) {
 		goto out;
+	}
+
+	/*
+	 * Disable bus power before voltage change.
+	 */
+	if (!ISSET(hp->sc->sc_flags, SDHC_FLAG_32BIT_ACCESS)
+	    && !ISSET(hp->sc->sc_flags, SDHC_FLAG_NO_PWR0)) {
+		HWRITE1(hp, SDHC_POWER_CTL, 0);
+		hp->vdd = 0;
+	}
 
 	if (!ISSET(hp->sc->sc_flags, SDHC_FLAG_ENHANCED)) {
 		/*
